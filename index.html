@@ -136,6 +136,45 @@
     border:3px dashed var(--accent); z-index:50; display:none; align-items:center; justify-content:center;
     font-size:20px; font-weight:700; color:var(--accent); pointer-events:none;
   }
+  /* ---------- Header convert button ---------- */
+  .hdr-btn{
+    height:34px; padding:0 12px; border-radius:9px; display:flex; align-items:center; gap:6px;
+    border:1px solid var(--border); background:var(--panel); font-size:12.5px; font-weight:600; white-space:nowrap;
+  }
+  .hdr-btn:hover{border-color:var(--accent)}
+  /* ---------- Batch convert modal ---------- */
+  #convOverlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  #convModal{
+    width:min(640px,100%); max-height:85vh; background:var(--panel); border-radius:16px;
+    border:1px solid var(--border); box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden;
+  }
+  .convHead{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border)}
+  .convHead h2{font-size:15px}
+  .convBody{padding:16px 18px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px}
+  #convDrop{
+    border:2px dashed var(--border); border-radius:12px; padding:22px; text-align:center; cursor:pointer;
+    color:var(--muted); transition:border-color .15s, background .15s;
+  }
+  #convDrop:hover, #convDrop.over{border-color:var(--accent); background:color-mix(in srgb,var(--accent) 6%, transparent)}
+  #convDrop .big{font-size:26px; margin-bottom:6px}
+  #convList{display:flex; flex-direction:column; gap:8px}
+  .convItem{
+    display:flex; align-items:center; gap:10px; padding:8px; border:1px solid var(--border); border-radius:10px;
+  }
+  .convItem img{width:40px; height:40px; object-fit:cover; border-radius:6px; background:var(--bg)}
+  .convItem .name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px}
+  .convItem select{flex:none; width:auto; padding:5px 6px; font-size:12px}
+  .convItem .rm{width:26px; height:26px; border-radius:7px; color:var(--muted); font-size:14px}
+  .convItem .rm:hover{color:var(--danger)}
+  .convItem .status{font-size:11px; color:var(--muted); min-width:60px; text-align:right}
+  #convBulkRow{border-top:1px solid var(--border); padding-top:12px; display:flex; flex-direction:column; gap:8px}
+  #convBulkRow .row{display:flex; align-items:center; gap:8px}
+  #convBulkRow label{font-size:12.5px; color:var(--muted)}
+  .convFoot{padding:14px 18px; border-top:1px solid var(--border); display:flex; align-items:center; gap:12px; justify-content:space-between}
+  .convFoot .btn{width:auto; padding:9px 16px}
   .hidden{display:none !important}
   body:not(.adv-on) .adv{display:none !important}
   #advRow{
@@ -156,6 +195,7 @@
 <body>
 <header>
   <span class="logo"><span class="dot"></span>Keyout</span>
+  <button class="hdr-btn" id="btnBatchConvert" title="Convert multiple images to another format">🔁 Convert Format</button>
   <span id="imgInfo"></span>
   <span class="spacer"></span>
   <button class="icon-btn" id="btnNew" title="Open another image">📂</button>
@@ -342,6 +382,43 @@
 
 <div id="dropOverlay">Drop to load image</div>
 <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp" hidden>
+
+<div id="convOverlay" class="hidden">
+  <div id="convModal">
+    <div class="convHead">
+      <h2>Convert image format</h2>
+      <button class="icon-btn" id="convClose">✕</button>
+    </div>
+    <div class="convBody">
+      <div id="convDrop">
+        <div class="big">📁</div>
+        <p>Click or drop images here to add them to the batch</p>
+      </div>
+      <div id="convList"></div>
+      <div id="convBulkRow" class="hidden">
+        <div class="row">
+          <label>Convert all to</label>
+          <select id="convBulkFmt">
+            <option value="image/png">PNG</option>
+            <option value="image/jpeg">JPG</option>
+            <option value="image/webp">WEBP</option>
+          </select>
+          <button class="btn small" id="convApplyAll" style="width:auto; padding:6px 10px">Apply to all</button>
+        </div>
+        <div class="row">
+          <label for="convQuality" style="flex:1">Quality (JPG/WEBP)</label>
+          <span class="val" id="convQualVal">92</span>
+        </div>
+        <input type="range" id="convQuality" min="10" max="100" value="92">
+      </div>
+    </div>
+    <div class="convFoot">
+      <span id="convStatus" class="hint"></span>
+      <button class="btn primary" id="convGo" disabled>⬇ Convert &amp; Download All</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="convFileInput" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple hidden>
 
 <script>
 'use strict';
@@ -1129,9 +1206,120 @@ window.addEventListener('keydown',e=>{
   if(e.key==='['){ $('sBSize').value=Math.max(4,state.brushSize-8); $('sBSize').dispatchEvent(new Event('input')); }
   if(e.key===']'){ $('sBSize').value=Math.min(300,state.brushSize+8); $('sBSize').dispatchEvent(new Event('input')); }
   if(e.key==='0' && state.prevData) fitView();
-  if(e.key==='Escape') setPicking(false);
+  if(e.key==='Escape'){ setPicking(false); closeConvModal(); }
 });
 window.addEventListener('keyup',e=>{ if(e.code==='Space'){ state.spaceDown=false; updateBrushCursor(); } });
+
+/* =====================================================================
+   BATCH FORMAT CONVERTER (independent of the background-removal pipeline)
+   Lets the user load any number of images, pick a target format per
+   image (or apply one to all), then converts & downloads them one by one.
+   ===================================================================== */
+let convId = 0;
+let convItems = [];
+
+function fmtExt(fmt){ return fmt==='image/png'?'png' : fmt==='image/jpeg'?'jpg' : 'webp'; }
+
+function addConvFiles(files){
+  for(const f of files){
+    if(!/^image\//.test(f.type)) continue;
+    convItems.push({ id:convId++, file:f, name:f.name||'image', url:URL.createObjectURL(f), format:'image/png' });
+  }
+  renderConvList();
+}
+
+function renderConvList(){
+  const box = $('convList'); box.innerHTML='';
+  convItems.forEach(item=>{
+    const el = document.createElement('div'); el.className='convItem';
+    el.innerHTML = `
+      <img src="${item.url}" alt="">
+      <span class="name" title="${item.name}">${item.name}</span>
+      <select data-id="${item.id}">
+        <option value="image/png"${item.format==='image/png'?' selected':''}>PNG</option>
+        <option value="image/jpeg"${item.format==='image/jpeg'?' selected':''}>JPG</option>
+        <option value="image/webp"${item.format==='image/webp'?' selected':''}>WEBP</option>
+      </select>
+      <span class="status" data-status="${item.id}"></span>
+      <button class="rm" data-rm="${item.id}" title="Remove">✕</button>`;
+    box.appendChild(el);
+  });
+  box.querySelectorAll('select[data-id]').forEach(s=>{
+    s.onchange = ()=>{ const it=convItems.find(x=>x.id===+s.dataset.id); if(it) it.format=s.value; };
+  });
+  box.querySelectorAll('[data-rm]').forEach(b=>{
+    b.onclick = ()=>{
+      const id = +b.dataset.rm;
+      const it = convItems.find(x=>x.id===id);
+      if(it) URL.revokeObjectURL(it.url);
+      convItems = convItems.filter(x=>x.id!==id);
+      renderConvList();
+    };
+  });
+  $('convBulkRow').classList.toggle('hidden', convItems.length===0);
+  $('convGo').disabled = convItems.length===0;
+  if(!convItems.length) $('convStatus').textContent='';
+}
+
+$('convApplyAll').onclick = ()=>{
+  const fmt = $('convBulkFmt').value;
+  convItems.forEach(it=>it.format=fmt);
+  renderConvList();
+};
+$('convQuality').addEventListener('input', e=>$('convQualVal').textContent=e.target.value);
+
+async function convertAllAndDownload(){
+  if(!convItems.length) return;
+  const btn = $('convGo'); btn.disabled=true;
+  const q = +$('convQuality').value/100;
+  for(let i=0;i<convItems.length;i++){
+    const item = convItems[i];
+    const statusEl = document.querySelector(`[data-status="${item.id}"]`);
+    if(statusEl) statusEl.textContent='Converting…';
+    $('convStatus').textContent = `Converting ${i+1} / ${convItems.length}…`;
+    try{
+      let bmp;
+      try{ bmp = await createImageBitmap(item.file, {imageOrientation:'from-image'}); }
+      catch{ bmp = await createImageBitmap(item.file); }
+      const c = document.createElement('canvas'); c.width=bmp.width; c.height=bmp.height;
+      const ctx = c.getContext('2d');
+      if(item.format==='image/jpeg'){ ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height); } // no alpha in JPG
+      ctx.drawImage(bmp,0,0);
+      bmp.close?.();
+      const blob = await new Promise(res=>c.toBlob(res, item.format, item.format==='image/png'?undefined:q));
+      const base = (item.name||'image').replace(/\.[^.]+$/,'') || 'image';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${base}.${fmtExt(item.format)}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+      if(statusEl) statusEl.textContent='✓ Done';
+    }catch(err){
+      console.error(err);
+      if(statusEl) statusEl.textContent='✗ Error';
+    }
+    await new Promise(r=>setTimeout(r,350)); // stagger so the browser doesn't block multi-downloads
+  }
+  $('convStatus').textContent = `Converted ${convItems.length} image(s).`;
+  btn.disabled = false;
+}
+$('convGo').onclick = convertAllAndDownload;
+
+function openConvModal(){ $('convOverlay').classList.remove('hidden'); }
+function closeConvModal(){ $('convOverlay')?.classList.add('hidden'); }
+$('btnBatchConvert').onclick = openConvModal;
+$('convClose').onclick = closeConvModal;
+$('convOverlay').addEventListener('click', e=>{ if(e.target===$('convOverlay')) closeConvModal(); });
+
+$('convDrop').onclick = ()=>$('convFileInput').click();
+$('convFileInput').addEventListener('change', e=>{ addConvFiles([...e.target.files]); e.target.value=''; });
+$('convDrop').addEventListener('dragover', e=>{ e.preventDefault(); e.stopPropagation(); $('convDrop').classList.add('over'); });
+$('convDrop').addEventListener('dragleave', e=>{ e.preventDefault(); e.stopPropagation(); $('convDrop').classList.remove('over'); });
+$('convDrop').addEventListener('drop', e=>{
+  e.preventDefault(); e.stopPropagation();
+  $('convDrop').classList.remove('over');
+  addConvFiles([...e.dataTransfer.files]);
+});
 </script>
 </body>
 </html>
