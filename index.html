@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keyout — Background Remover</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --border:#e2e4e9; --text:#1a1d24; --muted:#6b7280;
+    --accent:#6366f1; --accent-h:#4f52e0; --danger:#ef4444; --ok:#10b981;
+    --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 14px rgba(0,0,0,.05);
+    --check-a:#d9dbe1; --check-b:#f2f3f6; --radius:12px;
+  }
+  [data-theme="dark"]{
+    --bg:#111318; --panel:#1a1d24; --border:#2a2e38; --text:#e8eaf0; --muted:#8b91a0;
+    --accent:#818cf8; --accent-h:#9aa3ff; --shadow:0 1px 3px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.3);
+    --check-a:#2a2e38; --check-b:#1f232b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+    background:var(--bg); color:var(--text); overflow:hidden;
+  }
+  button{font:inherit; color:inherit; cursor:pointer; border:none; background:none}
+  /* ---------- Header ---------- */
+  header{
+    height:52px; display:flex; align-items:center; gap:10px; padding:0 16px;
+    background:var(--panel); border-bottom:1px solid var(--border);
+  }
+  .logo{font-weight:700; font-size:16px; display:flex; align-items:center; gap:8px}
+  .logo .dot{width:10px;height:10px;border-radius:3px;background:var(--accent);display:inline-block}
+  #imgInfo{color:var(--muted); font-size:12px; margin-left:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  header .spacer{flex:1}
+  .icon-btn{
+    width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--border); background:var(--panel); font-size:15px;
+  }
+  .icon-btn:hover{border-color:var(--accent)}
+  /* ---------- Layout ---------- */
+  #app{display:flex; height:calc(100% - 52px)}
+  aside{
+    width:290px; min-width:290px; overflow-y:auto; padding:14px;
+    background:var(--panel); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .group{border:1px solid var(--border); border-radius:var(--radius); padding:12px}
+  .group h3{font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:10px}
+  .row{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+  .row:last-child{margin-bottom:0}
+  .row label{flex:1; color:var(--text); font-size:13px}
+  .row .val{color:var(--muted); font-size:12px; min-width:30px; text-align:right; font-variant-numeric:tabular-nums}
+  input[type=range]{flex:1.4; accent-color:var(--accent); height:22px}
+  input[type=color]{
+    width:34px; height:28px; border:1px solid var(--border); border-radius:8px; padding:2px;
+    background:var(--panel); cursor:pointer;
+  }
+  .slider-row{display:grid; grid-template-columns:1fr; gap:2px; margin-bottom:10px}
+  .slider-row .top{display:flex; justify-content:space-between; font-size:12.5px}
+  .slider-row .top .val{color:var(--muted); font-variant-numeric:tabular-nums}
+  /* segmented control */
+  .seg{display:flex; background:var(--bg); border:1px solid var(--border); border-radius:9px; padding:3px; gap:3px}
+  .seg button{
+    flex:1; padding:6px 4px; border-radius:7px; font-size:12.5px; color:var(--muted); text-align:center;
+  }
+  .seg button.active{background:var(--panel); color:var(--text); box-shadow:var(--shadow); font-weight:600}
+  .seg button:disabled{opacity:.4; cursor:not-allowed}
+  .btn{
+    display:flex; align-items:center; justify-content:center; gap:7px; width:100%;
+    padding:9px 12px; border-radius:9px; border:1px solid var(--border); background:var(--panel);
+    font-weight:600; font-size:13px;
+  }
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.primary:hover{background:var(--accent-h)}
+  .btn.small{padding:6px 8px; font-size:12px; font-weight:500}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+  .btn-pair{display:flex; gap:8px}
+  .hint{font-size:11.5px; color:var(--muted); margin-top:6px}
+  select{
+    flex:1; padding:7px 8px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel); color:var(--text); font:inherit;
+  }
+  .eyedrop.active{background:var(--accent); color:#fff; border-color:var(--accent)}
+  #aiStatus{font-size:12px; color:var(--muted); margin-top:6px; display:none}
+  progress{width:100%; height:6px; accent-color:var(--accent); margin-top:6px; display:none}
+  /* ---------- Preview ---------- */
+  #stage{flex:1; display:flex; flex-direction:column; padding:14px; gap:10px; min-width:0}
+  #panels{flex:1; display:grid; grid-template-columns:1fr 1fr; gap:12px; min-height:0}
+  .panel{display:flex; flex-direction:column; min-height:0; min-width:0}
+  .panel .title{font-size:12px; color:var(--muted); font-weight:600; margin-bottom:6px; display:flex; gap:8px; align-items:center}
+  .viewport{
+    flex:1; position:relative; overflow:hidden; border-radius:var(--radius);
+    border:1px solid var(--border); background:var(--bg); min-height:0;
+    touch-action:none;
+  }
+  .viewport.checker{
+    background-image:
+      linear-gradient(45deg,var(--check-a) 25%,transparent 25%,transparent 75%,var(--check-a) 75%),
+      linear-gradient(45deg,var(--check-a) 25%,var(--check-b) 25%,var(--check-b) 75%,var(--check-a) 75%);
+    background-size:20px 20px; background-position:0 0,10px 10px;
+  }
+  .pan{position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform}
+  .pan canvas{display:block}
+  #origVp{cursor:grab} #origVp.picking{cursor:crosshair}
+  #resVp{cursor:grab}
+  #resVp.brushing{cursor:none}
+  #brushCursor{
+    position:absolute; border:1.5px solid #fff; outline:1.5px solid rgba(0,0,0,.65);
+    border-radius:50%; pointer-events:none; display:none; transform:translate(-50%,-50%); z-index:5;
+  }
+  /* ---------- Empty / drop state ---------- */
+  #empty{
+    flex:1; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  #dropBox{
+    width:min(560px,100%); border:2px dashed var(--border); border-radius:18px; padding:60px 30px;
+    text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  #dropBox:hover, #dropBox.over{border-color:var(--accent); background:color-mix(in srgb,var(--accent) 6%, transparent)}
+  #dropBox .big{font-size:38px; margin-bottom:12px}
+  #dropBox h2{font-size:17px; margin-bottom:6px}
+  #dropBox p{color:var(--muted); font-size:13px}
+  #dropOverlay{
+    position:fixed; inset:0; background:color-mix(in srgb,var(--accent) 14%, transparent);
+    border:3px dashed var(--accent); z-index:50; display:none; align-items:center; justify-content:center;
+    font-size:20px; font-weight:700; color:var(--accent); pointer-events:none;
+  }
+  .hidden{display:none !important}
+  /* ---------- Responsive ---------- */
+  @media (max-width:900px){
+    body{overflow:auto}
+    #app{flex-direction:column; height:auto}
+    aside{width:100%; min-width:0; border-right:none; border-bottom:1px solid var(--border)}
+    #panels{grid-template-columns:1fr; }
+    .viewport{min-height:300px}
+    #stage{min-height:720px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo"><span class="dot"></span>Keyout</span>
+  <span id="imgInfo"></span>
+  <span class="spacer"></span>
+  <button class="icon-btn" id="btnNew" title="Open another image">📂</button>
+  <button class="icon-btn" id="btnTheme" title="Toggle dark mode">🌙</button>
+</header>
+
+<div id="app">
+  <aside id="sidebar" class="hidden">
+    <!-- Mode -->
+    <div class="group">
+      <h3>Removal Mode</h3>
+      <div class="seg" id="modeSeg">
+        <button data-mode="chroma" class="active">Chroma Key</button>
+        <button data-mode="ai" id="modeAiBtn">Auto (AI)</button>
+      </div>
+      <div id="aiStatus"></div>
+      <progress id="aiProg" max="100" value="0"></progress>
+    </div>
+
+    <!-- Key color -->
+    <div class="group" id="chromaGroup">
+      <h3>Key Color</h3>
+      <div class="row">
+        <button class="btn small eyedrop" id="btnEyedrop" style="flex:1">💧 Pick from image</button>
+        <input type="color" id="keyColor" value="#00ff00" title="Key color">
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Tolerance</span><span class="val" id="vTol">30</span></div>
+        <input type="range" id="sTol" min="0" max="100" value="30">
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Softness</span><span class="val" id="vSoft">12</span></div>
+        <input type="range" id="sSoft" min="0" max="60" value="12">
+      </div>
+      <div class="row">
+        <label for="chkDespill">Remove color spill (despill)</label>
+        <input type="checkbox" id="chkDespill" checked>
+      </div>
+    </div>
+
+    <!-- Edges -->
+    <div class="group">
+      <h3>Edge Refinement</h3>
+      <div class="slider-row">
+        <div class="top"><span>Feathering</span><span class="val" id="vFeather">3</span></div>
+        <input type="range" id="sFeather" min="0" max="20" value="3">
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Edge threshold</span><span class="val" id="vEdge">25</span></div>
+        <input type="range" id="sEdge" min="1" max="100" value="25">
+      </div>
+    </div>
+
+    <!-- Background -->
+    <div class="group">
+      <h3>Background</h3>
+      <div class="row">
+        <div class="seg" style="flex:1" id="bgSeg">
+          <button data-bg="transparent" class="active">Transparent</button>
+          <button data-bg="solid">Solid color</button>
+        </div>
+        <input type="color" id="bgColor" value="#ffffff" title="Background color" disabled>
+      </div>
+    </div>
+
+    <!-- Brush -->
+    <div class="group">
+      <h3>Correction Brush</h3>
+      <div class="seg" id="brushSeg">
+        <button data-brush="off" class="active">Off</button>
+        <button data-brush="restore">＋ Restore</button>
+        <button data-brush="erase">－ Erase</button>
+      </div>
+      <div class="slider-row" style="margin-top:10px">
+        <div class="top"><span>Size</span><span class="val" id="vBSize">40</span></div>
+        <input type="range" id="sBSize" min="4" max="300" value="40">
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Hardness</span><span class="val" id="vBHard">50</span></div>
+        <input type="range" id="sBHard" min="0" max="100" value="50">
+      </div>
+      <div class="btn-pair">
+        <button class="btn small" id="btnUndo" title="Ctrl+Z">↩ Undo</button>
+        <button class="btn small" id="btnClearBrush">✕ Clear</button>
+      </div>
+      <div class="hint">Paint on the Result panel. Space+drag to pan while brushing.</div>
+    </div>
+
+    <!-- Export -->
+    <div class="group">
+      <h3>Export</h3>
+      <div class="row">
+        <label for="fileNameInput">File name</label>
+      </div>
+      <div class="row">
+        <input type="text" id="fileNameInput" placeholder="image" style="flex:1; padding:7px 8px; border-radius:8px; border:1px solid var(--border); background:var(--panel); color:var(--text); font:inherit;">
+      </div>
+      <div class="row">
+        <input type="checkbox" id="chkSuffix" checked style="width:auto; flex:none;">
+        <label for="chkSuffix" style="flex:1">Add "-keyout" suffix</label>
+      </div>
+      <div class="hint" id="suffixHint" style="margin-bottom:8px">Saved as “<span id="suffixPreview">image-keyout</span>.png”</div>
+      <div class="row">
+        <label>Format</label>
+        <select id="fmtSel">
+          <option value="image/png" selected>PNG</option>
+          <option value="image/jpeg">JPG</option>
+          <option value="image/webp">WEBP</option>
+        </select>
+      </div>
+      <div class="slider-row hidden" id="qualityRow">
+        <div class="top"><span>Quality</span><span class="val" id="vQual">92</span></div>
+        <input type="range" id="sQual" min="10" max="100" value="92">
+      </div>
+      <button class="btn primary" id="btnDownload">⬇ Download</button>
+      <div class="hint" id="fmtHint">PNG keeps transparency and full quality.</div>
+    </div>
+  </aside>
+
+  <div id="stage">
+    <div id="empty">
+      <div id="dropBox">
+        <div class="big">🖼️</div>
+        <h2>Drop an image here</h2>
+        <p>or click to browse · paste with Ctrl+V<br>PNG · JPG · WEBP</p>
+      </div>
+    </div>
+    <div id="panels" class="hidden">
+      <div class="panel">
+        <div class="title">ORIGINAL <span style="font-weight:400">· click to pick key color when eyedropper is on</span></div>
+        <div class="viewport" id="origVp">
+          <div class="pan" id="origPan"><canvas id="origCanvas"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="title">RESULT <span id="zoomLabel" style="font-weight:400"></span></div>
+        <div class="viewport checker" id="resVp">
+          <div class="pan" id="resPan"><canvas id="resCanvas"></canvas></div>
+          <div id="brushCursor"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="dropOverlay">Drop to load image</div>
+<input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp" hidden>
+
+<script>
+'use strict';
+/* =====================================================================
+   Keyout — client-side background remover
+   Pipeline: image -> base mask (chroma | AI) -> edge refine (Sobel +
+   feather) -> brush correction layer -> composite (transparent | solid)
+   Preview runs on a downscaled copy; export re-runs at full resolution.
+   ===================================================================== */
+
+const $ = id => document.getElementById(id);
+const PREVIEW_MAX = 1400;
+
+const state = {
+  file: null, fileName: 'image',
+  fullW: 0, fullH: 0, fullData: null,      // ImageData at original resolution
+  prevW: 0, prevH: 0, prevData: null,      // ImageData at preview resolution
+  mode: 'chroma',                          // 'chroma' | 'ai'
+  aiMaskFull: null, aiMaskPrev: null,      // Float32Array alpha mattes from AI
+  key: {r:0, g:255, b:0},
+  tol: 30, soft: 12, despill: true,
+  feather: 3, edgeThr: 25,
+  bgMode: 'transparent', bgColor: {r:255,g:255,b:255},
+  brush: 'off', brushSize: 40, brushHard: 50,
+  strokes: [],                             // {mode,size,hard,pts:[{x,y}]} in preview px
+  zoom: 1, panX: 0, panY: 0,
+  picking: false, spaceDown: false,
+  dirty: {mask:true, refine:true, comp:true},
+};
+
+// cached pipeline buffers (preview resolution)
+const cache = { baseMask:null, refined:null, brushPix:null, brushDirty:true };
+
+/* ---------- small utils ---------- */
+const clamp = (v,a,b)=> v<a?a : v>b?b : v;
+const hex2rgb = h => ({r:parseInt(h.slice(1,3),16), g:parseInt(h.slice(3,5),16), b:parseInt(h.slice(5,7),16)});
+const rgb2hex = c => '#'+[c.r,c.g,c.b].map(v=>v.toString(16).padStart(2,'0')).join('');
+const cbOf = (r,g,b)=> 128 - 0.168736*r - 0.331264*g + 0.5*b;
+const crOf = (r,g,b)=> 128 + 0.5*r - 0.418688*g - 0.081312*b;
+
+function markDirty(stage){
+  if(stage==='mask'){ state.dirty.mask = state.dirty.refine = state.dirty.comp = true; }
+  else if(stage==='refine'){ state.dirty.refine = state.dirty.comp = true; }
+  else state.dirty.comp = true;
+  scheduleRender();
+}
+
+let rafPending = false;
+function scheduleRender(){
+  if(rafPending || !state.prevData) return;
+  rafPending = true;
+  requestAnimationFrame(()=>{ rafPending = false; renderPreview(); });
+}
+
+/* =====================================================================
+   PIPELINE (pure functions over pixel buffers — reused for preview & export)
+   ===================================================================== */
+
+// 1) Chroma key: distance in the CbCr plane (luminance-independent).
+function chromaMask(imgData, key, tol, soft){
+  const d = imgData.data, n = imgData.width*imgData.height;
+  const mask = new Float32Array(n);
+  const kcb = cbOf(key.r,key.g,key.b), kcr = crOf(key.r,key.g,key.b);
+  const t0 = tol*0.9, t1 = t0 + Math.max(soft,1)*0.9, span = t1-t0;
+  for(let i=0,p=0;i<n;i++,p+=4){
+    const r=d[p],g=d[p+1],b=d[p+2];
+    const dcb = cbOf(r,g,b)-kcb, dcr = crOf(r,g,b)-kcr;
+    const dist = Math.sqrt(dcb*dcb+dcr*dcr);
+    mask[i] = dist<=t0 ? 0 : dist>=t1 ? 1 : (dist-t0)/span;
+  }
+  return mask;
+}
+
+// separable box blur on a Float32 field
+function boxBlur(src, w, h, r){
+  if(r<1) return src.slice();
+  const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+  for(let y=0;y<h;y++){                       // horizontal
+    const row=y*w; let sum=0;
+    for(let x=-r;x<=r;x++) sum += src[row+clamp(x,0,w-1)];
+    for(let x=0;x<w;x++){
+      tmp[row+x]=sum/(2*r+1);
+      sum += src[row+clamp(x+r+1,0,w-1)] - src[row+clamp(x-r,0,w-1)];
+    }
+  }
+  for(let x=0;x<w;x++){                       // vertical
+    let sum=0;
+    for(let y=-r;y<=r;y++) sum += tmp[clamp(y,0,h-1)*w+x];
+    for(let y=0;y<h;y++){
+      out[y*w+x]=sum/(2*r+1);
+      sum += tmp[clamp(y+r+1,0,h-1)*w+x] - tmp[clamp(y-r,0,h-1)*w+x];
+    }
+  }
+  return out;
+}
+
+// 2) Sobel on the mask -> edge map; feather (blur) applied only at edges.
+function refineMask(mask, w, h, feather, edgeThr){
+  if(feather<1) return mask.slice();
+  const edge = new Float32Array(mask.length);
+  const thr = edgeThr/100;
+  for(let y=1;y<h-1;y++){
+    for(let x=1;x<w-1;x++){
+      const i=y*w+x;
+      const gx = -mask[i-w-1]-2*mask[i-1]-mask[i+w-1] + mask[i-w+1]+2*mask[i+1]+mask[i+w+1];
+      const gy = -mask[i-w-1]-2*mask[i-w]-mask[i-w+1] + mask[i+w-1]+2*mask[i+w]+mask[i+w+1];
+      edge[i] = Math.sqrt(gx*gx+gy*gy)/5.66 > thr ? 1 : 0;   // normalized magnitude
+    }
+  }
+  const edgeSoft = boxBlur(edge, w, h, Math.max(1,feather));  // soften the seam
+  const blurred  = boxBlur(mask, w, h, feather);
+  const out = new Float32Array(mask.length);
+  for(let i=0;i<mask.length;i++){
+    const e = edgeSoft[i];
+    out[i] = mask[i]*(1-e) + blurred[i]*e;
+  }
+  return out;
+}
+
+// 3) Brush correction layer: strokes rendered to an offscreen canvas.
+//    green channel = restore, red channel = erase; alpha = strength.
+function renderStrokes(strokes, w, h, scale){
+  const c = document.createElement('canvas'); c.width=w; c.height=h;
+  const ctx = c.getContext('2d');
+  for(const s of strokes){
+    const rad = Math.max(1, s.size*scale/2);
+    const col = s.mode==='restore' ? '0,255,0' : '255,0,0';
+    const hard = s.hard/100;
+    for(let k=0;k<s.pts.length;k++){
+      const p0 = s.pts[Math.max(0,k-1)], p1 = s.pts[k];
+      const dx=(p1.x-p0.x)*scale, dy=(p1.y-p0.y)*scale;
+      const dist=Math.hypot(dx,dy), steps=Math.max(1,Math.ceil(dist/(rad*0.35)));
+      for(let t=0;t<=steps;t++){
+        const x=p0.x*scale+dx*t/steps, y=p0.y*scale+dy*t/steps;
+        const grad = ctx.createRadialGradient(x,y,rad*hard,x,y,rad);
+        grad.addColorStop(0,`rgba(${col},1)`); grad.addColorStop(1,`rgba(${col},0)`);
+        ctx.fillStyle=grad;
+        ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fill();
+      }
+    }
+  }
+  return ctx.getImageData(0,0,w,h).data;
+}
+
+function applyBrush(mask, brushPix){
+  if(!brushPix) return mask;
+  const out = mask.slice();
+  for(let i=0,p=0;i<mask.length;i++,p+=4){
+    const a = brushPix[p+3];
+    if(!a) continue;
+    const target = brushPix[p+1] >= brushPix[p] ? 1 : 0;     // g>=r -> restore
+    const s = a/255;
+    out[i] = out[i]*(1-s) + target*s;
+  }
+  return out;
+}
+
+// 4) Despill + composite into an RGBA buffer.
+function composite(imgData, mask, opts){
+  const src = imgData.data, w = imgData.width, h = imgData.height;
+  const out = new ImageData(w,h), o = out.data;
+  const {despill, key, bgMode, bgColor} = opts;
+  let ux=0, uy=0, doSpill=false;
+  if(despill){
+    ux = cbOf(key.r,key.g,key.b)-128; uy = crOf(key.r,key.g,key.b)-128;
+    const len = Math.hypot(ux,uy);
+    if(len>8){ ux/=len; uy/=len; doSpill=true; }
+  }
+  const solid = bgMode==='solid';
+  for(let i=0,p=0;i<w*h;i++,p+=4){
+    let r=src[p], g=src[p+1], b=src[p+2];
+    const a = mask[i];
+    if(doSpill && a>0.003 && a<0.997){
+      const y = 0.299*r+0.587*g+0.114*b;
+      let cb = cbOf(r,g,b)-128, cr = crOf(r,g,b)-128;
+      const dot = cb*ux+cr*uy;
+      if(dot>0){ cb -= ux*dot*0.9; cr -= uy*dot*0.9;
+        r = clamp(y + 1.402*cr, 0,255);
+        g = clamp(y - 0.344136*cb - 0.714136*cr, 0,255);
+        b = clamp(y + 1.772*cb, 0,255);
+      }
+    }
+    if(solid){
+      o[p]   = bgColor.r + (r-bgColor.r)*a;
+      o[p+1] = bgColor.g + (g-bgColor.g)*a;
+      o[p+2] = bgColor.b + (b-bgColor.b)*a;
+      o[p+3] = 255;
+    }else{
+      o[p]=r; o[p+1]=g; o[p+2]=b; o[p+3]=Math.round(a*255*(src[p+3]/255));
+    }
+  }
+  return out;
+}
+
+// Full pipeline for arbitrary resolution (used by export; preview uses caches).
+function runPipeline(imgData, featherScale, strokeScale){
+  const w=imgData.width, h=imgData.height;
+  let mask;
+  if(state.mode==='ai' && state.aiMaskFull && w===state.fullW){
+    mask = state.aiMaskFull;
+  }else if(state.mode==='ai' && state.aiMaskPrev && w===state.prevW){
+    mask = state.aiMaskPrev;
+  }else{
+    mask = chromaMask(imgData, state.key, state.tol, state.soft);
+  }
+  mask = refineMask(mask, w, h, Math.round(state.feather*featherScale), state.edgeThr);
+  if(state.strokes.length){
+    mask = applyBrush(mask, renderStrokes(state.strokes, w, h, strokeScale));
+  }
+  return composite(imgData, mask, state);
+}
+
+/* =====================================================================
+   PREVIEW RENDER (incremental via dirty flags)
+   ===================================================================== */
+function renderPreview(){
+  if(!state.prevData) return;
+  const w=state.prevW, h=state.prevH;
+  if(state.dirty.mask || !cache.baseMask){
+    cache.baseMask = (state.mode==='ai' && state.aiMaskPrev)
+      ? state.aiMaskPrev
+      : chromaMask(state.prevData, state.key, state.tol, state.soft);
+    state.dirty.mask=false;
+  }
+  if(state.dirty.refine || !cache.refined){
+    cache.refined = refineMask(cache.baseMask, w, h, state.feather, state.edgeThr);
+    state.dirty.refine=false;
+  }
+  if(cache.brushDirty){
+    cache.brushPix = state.strokes.length ? renderStrokes(state.strokes, w, h, 1) : null;
+    cache.brushDirty=false;
+  }
+  const final = applyBrush(cache.refined, cache.brushPix);
+  const out = composite(state.prevData, final, state);
+  resCanvas.getContext('2d').putImageData(out,0,0);
+  state.dirty.comp=false;
+}
+
+/* =====================================================================
+   IMAGE LOADING
+   ===================================================================== */
+async function loadFile(file){
+  if(!file || !/^image\/(png|jpeg|webp)/.test(file.type)){ return; }
+  state.file = file;
+  state.fileName = (file.name||'image').replace(/\.[^.]+$/,'') || 'image';
+  $('fileNameInput').value = state.fileName;
+  updateSuffixPreview();
+  let bmp;
+  try{ bmp = await createImageBitmap(file, {imageOrientation:'from-image'}); }
+  catch{ bmp = await createImageBitmap(file); }
+  state.fullW = bmp.width; state.fullH = bmp.height;
+
+  // full-res buffer
+  const fc = document.createElement('canvas'); fc.width=bmp.width; fc.height=bmp.height;
+  const fctx = fc.getContext('2d',{willReadFrequently:true});
+  fctx.drawImage(bmp,0,0);
+  state.fullData = fctx.getImageData(0,0,bmp.width,bmp.height);
+
+  // preview buffer
+  const scale = Math.min(1, PREVIEW_MAX/Math.max(bmp.width,bmp.height));
+  state.prevW = Math.max(1,Math.round(bmp.width*scale));
+  state.prevH = Math.max(1,Math.round(bmp.height*scale));
+  const pc = document.createElement('canvas'); pc.width=state.prevW; pc.height=state.prevH;
+  const pctx = pc.getContext('2d',{willReadFrequently:true});
+  pctx.imageSmoothingQuality='high';
+  pctx.drawImage(bmp,0,0,state.prevW,state.prevH);
+  state.prevData = pctx.getImageData(0,0,state.prevW,state.prevH);
+  bmp.close?.();
+
+  // reset per-image state
+  state.strokes=[]; cache.brushDirty=true; cache.baseMask=cache.refined=null;
+  state.aiMaskFull=state.aiMaskPrev=null;
+  if(state.mode==='ai') setMode('chroma', true);
+  autoKeyFromBorder();
+
+  origCanvas.width=resCanvas.width=state.prevW;
+  origCanvas.height=resCanvas.height=state.prevH;
+  origCanvas.getContext('2d').putImageData(state.prevData,0,0);
+
+  $('imgInfo').textContent = `${file.name||'pasted image'} · ${state.fullW}×${state.fullH}px`;
+  $('empty').classList.add('hidden');
+  $('panels').classList.remove('hidden');
+  $('sidebar').classList.remove('hidden');
+  fitView();
+  markDirty('mask');
+}
+
+// initial key color = most frequent (quantized) border color
+function autoKeyFromBorder(){
+  const {data,width:w,height:h} = state.prevData;
+  const bins = new Map();
+  const visit = (x,y)=>{
+    const p=(y*w+x)*4, q=32;
+    const key=`${Math.round(data[p]/q)},${Math.round(data[p+1]/q)},${Math.round(data[p+2]/q)}`;
+    const e=bins.get(key)||{n:0,r:0,g:0,b:0};
+    e.n++; e.r+=data[p]; e.g+=data[p+1]; e.b+=data[p+2];
+    bins.set(key,e);
+  };
+  const step = Math.max(1,Math.floor(w/200));
+  for(let x=0;x<w;x+=step){ visit(x,0); visit(x,h-1); }
+  for(let y=0;y<h;y+=step){ visit(0,y); visit(w-1,y); }
+  let best=null;
+  for(const e of bins.values()) if(!best||e.n>best.n) best=e;
+  if(best){
+    state.key={r:Math.round(best.r/best.n), g:Math.round(best.g/best.n), b:Math.round(best.b/best.n)};
+    $('keyColor').value = rgb2hex(state.key);
+  }
+}
+
+/* =====================================================================
+   EXPORT
+   ===================================================================== */
+function outputBaseName(){
+  const typed = $('fileNameInput').value.trim();
+  const base = typed || state.fileName || 'image';
+  return $('chkSuffix').checked ? `${base}-keyout` : base;
+}
+function updateSuffixPreview(){
+  const fmt = $('fmtSel')?.value || 'image/png';
+  const ext = fmt==='image/png'?'png':fmt==='image/jpeg'?'jpg':'webp';
+  $('suffixPreview').textContent = `${outputBaseName()}.${ext}`;
+}
+$('fileNameInput').addEventListener('input', updateSuffixPreview);
+$('chkSuffix').addEventListener('change', updateSuffixPreview);
+$('fmtSel').addEventListener('change', updateSuffixPreview);
+
+async function download(){
+  if(!state.fullData) return;
+  const btn=$('btnDownload'); btn.disabled=true; btn.textContent='Processing…';
+  await new Promise(r=>setTimeout(r,30));                    // let UI paint
+  try{
+    const fmt = $('fmtSel').value;
+    const scale = state.fullW/state.prevW;
+    // JPG has no alpha: flatten onto bg color (white if transparent mode)
+    const saved = state.bgMode;
+    if(fmt==='image/jpeg' && state.bgMode==='transparent') state.bgMode='solid';
+    const out = runPipeline(state.fullData, scale, scale);
+    state.bgMode = saved;
+    const c=document.createElement('canvas'); c.width=state.fullW; c.height=state.fullH;
+    c.getContext('2d').putImageData(out,0,0);
+    const q = +$('sQual').value/100;
+    const blob = await new Promise(res=>c.toBlob(res,fmt,fmt==='image/png'?undefined:q));
+    const ext = fmt==='image/png'?'png':fmt==='image/jpeg'?'jpg':'webp';
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=`${outputBaseName()}.${ext}`;
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  }finally{
+    btn.disabled=false; btn.textContent='⬇ Download';
+  }
+}
+
+/* =====================================================================
+   VIEW: shared zoom & pan for both panels
+   ===================================================================== */
+const origCanvas=$('origCanvas'), resCanvas=$('resCanvas');
+const origVp=$('origVp'), resVp=$('resVp');
+const pans=[$('origPan'),$('resPan')];
+
+function applyView(){
+  const t=`translate(${state.panX}px,${state.panY}px) scale(${state.zoom})`;
+  pans.forEach(p=>p.style.transform=t);
+  $('zoomLabel').textContent=`· ${Math.round(state.zoom*100)}%`;
+}
+function fitView(){
+  const r=resVp.getBoundingClientRect();
+  if(!r.width||!state.prevW) return;
+  state.zoom=Math.min(r.width/state.prevW, r.height/state.prevH)*0.97;
+  state.panX=(r.width-state.prevW*state.zoom)/2;
+  state.panY=(r.height-state.prevH*state.zoom)/2;
+  applyView();
+}
+window.addEventListener('resize', ()=>{ if(state.prevData) fitView(); });
+
+function wheelZoom(e){
+  e.preventDefault();
+  const r=e.currentTarget.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const f=e.deltaY<0?1.15:1/1.15;
+  const z=clamp(state.zoom*f,0.03,20);
+  state.panX=mx-(mx-state.panX)*(z/state.zoom);
+  state.panY=my-(my-state.panY)*(z/state.zoom);
+  state.zoom=z; applyView(); updateBrushCursor();
+}
+[origVp,resVp].forEach(vp=>vp.addEventListener('wheel',wheelZoom,{passive:false}));
+
+// image-space coords from a pointer event on a viewport
+function imgCoords(e,vp){
+  const r=vp.getBoundingClientRect();
+  return { x:(e.clientX-r.left-state.panX)/state.zoom,
+           y:(e.clientY-r.top -state.panY)/state.zoom };
+}
+
+/* ---------- pointer handling: pan / brush / eyedropper ---------- */
+let drag=null;  // {type:'pan'|'brush', lastX,lastY}
+
+function pointerDown(e, vp){
+  vp.setPointerCapture(e.pointerId);
+  const brushing = vp===resVp && state.brush!=='off' && !state.spaceDown && e.button===0;
+  if(vp===origVp && state.picking && e.button===0){ pickColor(e); return; }
+  if(brushing){
+    const st={mode:state.brush, size:state.brushSize, hard:state.brushHard, pts:[imgCoords(e,vp)]};
+    state.strokes.push(st);
+    drag={type:'brush', stroke:st};
+    cache.brushDirty=true; markDirty('comp');
+  }else{
+    drag={type:'pan', lastX:e.clientX, lastY:e.clientY};
+    vp.style.cursor='grabbing';
+  }
+}
+function pointerMove(e, vp){
+  if(vp===resVp) updateBrushCursor(e);
+  if(!drag) return;
+  if(drag.type==='pan'){
+    state.panX+=e.clientX-drag.lastX; state.panY+=e.clientY-drag.lastY;
+    drag.lastX=e.clientX; drag.lastY=e.clientY;
+    applyView();
+  }else{
+    drag.stroke.pts.push(imgCoords(e,vp));
+    cache.brushDirty=true; markDirty('comp');
+  }
+}
+function pointerUp(e, vp){ drag=null; vp.style.cursor=''; }
+
+[[origVp],[resVp]].forEach(([vp])=>{
+  vp.addEventListener('pointerdown', e=>pointerDown(e,vp));
+  vp.addEventListener('pointermove', e=>pointerMove(e,vp));
+  vp.addEventListener('pointerup',   e=>pointerUp(e,vp));
+  vp.addEventListener('pointercancel', e=>pointerUp(e,vp));
+});
+resVp.addEventListener('pointerleave', ()=>{ $('brushCursor').style.display='none'; });
+
+function updateBrushCursor(e){
+  const bc=$('brushCursor');
+  const show = state.brush!=='off' && !state.spaceDown;
+  resVp.classList.toggle('brushing', show);
+  if(!show || !e){ if(!e) bc.style.display='none'; return; }
+  const r=resVp.getBoundingClientRect();
+  bc.style.display='block';
+  bc.style.left=(e.clientX-r.left)+'px';
+  bc.style.top=(e.clientY-r.top)+'px';
+  const d=state.brushSize*state.zoom;
+  bc.style.width=d+'px'; bc.style.height=d+'px';
+}
+
+/* ---------- eyedropper ---------- */
+function pickColor(e){
+  const {x,y}=imgCoords(e,origVp);
+  const xi=clamp(Math.round(x),1,state.prevW-2), yi=clamp(Math.round(y),1,state.prevH-2);
+  const d=state.prevData.data; let r=0,g=0,b=0;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){        // 3×3 average
+    const p=((yi+dy)*state.prevW+(xi+dx))*4; r+=d[p]; g+=d[p+1]; b+=d[p+2];
+  }
+  state.key={r:Math.round(r/9), g:Math.round(g/9), b:Math.round(b/9)};
+  $('keyColor').value=rgb2hex(state.key);
+  setPicking(false);
+  if(state.mode!=='chroma') setMode('chroma');
+  markDirty('mask');
+}
+function setPicking(on){
+  state.picking=on;
+  $('btnEyedrop').classList.toggle('active',on);
+  origVp.classList.toggle('picking',on);
+}
+$('btnEyedrop').onclick=()=>setPicking(!state.picking);
+
+/* =====================================================================
+   AI MODE (lazy-loaded from CDN, optional)
+   ===================================================================== */
+let aiLib=null, aiRunning=false;
+async function runAI(){
+  if(aiRunning || !state.file) return;
+  aiRunning=true;
+  const status=$('aiStatus'), prog=$('aiProg');
+  status.style.display='block'; prog.style.display='block'; prog.value=0;
+  status.textContent='Loading AI model (first time may take a while)…';
+  try{
+    if(!aiLib) aiLib = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm');
+    const blob = await aiLib.removeBackground(state.file, {
+      progress:(k,c,t)=>{ prog.value=t?Math.round(c/t*100):0;
+        status.textContent = k.startsWith('fetch')?'Downloading model…':'Segmenting image…'; }
+    });
+    // read alpha channel of the AI result at full + preview resolutions
+    const bmp = await createImageBitmap(blob);
+    const grab=(w,h)=>{ const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const ctx=c.getContext('2d',{willReadFrequently:true});
+      ctx.drawImage(bmp,0,0,w,h);
+      const px=ctx.getImageData(0,0,w,h).data, m=new Float32Array(w*h);
+      for(let i=0;i<m.length;i++) m[i]=px[i*4+3]/255;
+      return m; };
+    state.aiMaskFull = grab(state.fullW,state.fullH);
+    state.aiMaskPrev = grab(state.prevW,state.prevH);
+    bmp.close?.();
+    status.textContent='AI matte ready — refine with feather & brush.';
+    setMode('ai');
+  }catch(err){
+    console.error(err);
+    status.textContent='AI unavailable (offline or CDN blocked). Chroma mode still works.';
+    setMode('chroma');
+  }finally{
+    aiRunning=false; prog.style.display='none';
+    setTimeout(()=>{status.style.display='none';},6000);
+  }
+}
+
+function setMode(mode, silent){
+  state.mode=mode;
+  document.querySelectorAll('#modeSeg button').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+  $('chromaGroup').style.opacity = mode==='ai'?'.45':'1';
+  $('chromaGroup').style.pointerEvents = mode==='ai'?'none':'auto';
+  cache.baseMask=null;
+  if(!silent) markDirty('mask');
+}
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{
+  if(b.dataset.mode==='ai'){ state.aiMaskPrev ? setMode('ai') : runAI(); }
+  else setMode('chroma');
+});
+
+/* =====================================================================
+   UI WIRING
+   ===================================================================== */
+function bindSlider(id, valId, prop, stage){
+  const el=$(id);
+  el.addEventListener('input',()=>{ state[prop]=+el.value; $(valId).textContent=el.value; markDirty(stage); });
+}
+bindSlider('sTol','vTol','tol','mask');
+bindSlider('sSoft','vSoft','soft','mask');
+bindSlider('sFeather','vFeather','feather','refine');
+bindSlider('sEdge','vEdge','edgeThr','refine');
+$('sBSize').addEventListener('input',e=>{ state.brushSize=+e.target.value; $('vBSize').textContent=e.target.value; });
+$('sBHard').addEventListener('input',e=>{ state.brushHard=+e.target.value; $('vBHard').textContent=e.target.value; });
+$('sQual').addEventListener('input',e=>$('vQual').textContent=e.target.value);
+
+$('keyColor').addEventListener('input',e=>{ state.key=hex2rgb(e.target.value); if(state.mode!=='chroma')setMode('chroma'); markDirty('mask'); });
+$('chkDespill').addEventListener('change',e=>{ state.despill=e.target.checked; markDirty('comp'); });
+$('bgColor').addEventListener('input',e=>{ state.bgColor=hex2rgb(e.target.value); markDirty('comp'); });
+
+document.querySelectorAll('#bgSeg button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#bgSeg button').forEach(x=>x.classList.toggle('active',x===b));
+  state.bgMode=b.dataset.bg;
+  $('bgColor').disabled = state.bgMode!=='solid';
+  markDirty('comp');
+});
+document.querySelectorAll('#brushSeg button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#brushSeg button').forEach(x=>x.classList.toggle('active',x===b));
+  state.brush=b.dataset.brush;
+  updateBrushCursor();
+});
+$('btnUndo').onclick=()=>{ state.strokes.pop(); cache.brushDirty=true; markDirty('comp'); };
+$('btnClearBrush').onclick=()=>{ state.strokes=[]; cache.brushDirty=true; markDirty('comp'); };
+
+$('fmtSel').addEventListener('change',()=>{
+  const f=$('fmtSel').value;
+  $('qualityRow').classList.toggle('hidden', f==='image/png');
+  $('fmtHint').textContent = f==='image/png' ? 'PNG keeps transparency and full quality.'
+    : f==='image/jpeg' ? 'JPG has no transparency — it will be flattened onto the background color.'
+    : 'WEBP supports transparency with smaller files.';
+});
+$('btnDownload').onclick=download;
+
+/* ---------- theme ---------- */
+const root=document.documentElement;
+function setTheme(t){ root.dataset.theme=t; $('btnTheme').textContent = t==='dark'?'☀️':'🌙'; }
+setTheme(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+$('btnTheme').onclick=()=>setTheme(root.dataset.theme==='dark'?'light':'dark');
+
+/* ---------- file input / drag & drop / paste ---------- */
+$('dropBox').onclick=()=>$('fileInput').click();
+$('btnNew').onclick=()=>$('fileInput').click();
+$('fileInput').addEventListener('change',e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); e.target.value=''; });
+
+let dragDepth=0;
+window.addEventListener('dragenter',e=>{ e.preventDefault(); if(++dragDepth===1)$('dropOverlay').style.display='flex'; });
+window.addEventListener('dragleave',e=>{ e.preventDefault(); if(--dragDepth<=0){dragDepth=0;$('dropOverlay').style.display='none';} });
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('drop',e=>{
+  e.preventDefault(); dragDepth=0; $('dropOverlay').style.display='none';
+  const f=[...e.dataTransfer.files].find(f=>/^image\//.test(f.type));
+  if(f) loadFile(f);
+});
+window.addEventListener('paste',e=>{
+  const it=[...(e.clipboardData?.items||[])].find(i=>/^image\//.test(i.type));
+  if(it) loadFile(it.getAsFile());
+});
+
+/* ---------- keyboard ---------- */
+window.addEventListener('keydown',e=>{
+  if(e.code==='Space' && !e.repeat){ state.spaceDown=true; updateBrushCursor(); if(e.target===document.body) e.preventDefault(); }
+  if((e.ctrlKey||e.metaKey) && e.key==='z'){ e.preventDefault(); $('btnUndo').click(); }
+  if(e.key==='['){ $('sBSize').value=Math.max(4,state.brushSize-8); $('sBSize').dispatchEvent(new Event('input')); }
+  if(e.key===']'){ $('sBSize').value=Math.min(300,state.brushSize+8); $('sBSize').dispatchEvent(new Event('input')); }
+  if(e.key==='0' && state.prevData) fitView();
+});
+window.addEventListener('keyup',e=>{ if(e.code==='Space'){ state.spaceDown=false; updateBrushCursor(); } });
+</script>
+</body>
+</html>
