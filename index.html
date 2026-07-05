@@ -95,10 +95,20 @@
     touch-action:none;
   }
   .viewport.checker{
+    /* always light so transparency is obvious in dark mode too */
     background-image:
-      linear-gradient(45deg,var(--check-a) 25%,transparent 25%,transparent 75%,var(--check-a) 75%),
-      linear-gradient(45deg,var(--check-a) 25%,var(--check-b) 25%,var(--check-b) 75%,var(--check-a) 75%);
+      linear-gradient(45deg,#d2d5db 25%,transparent 25%,transparent 75%,#d2d5db 75%),
+      linear-gradient(45deg,#d2d5db 25%,#f0f1f5 25%,#f0f1f5 75%,#d2d5db 75%);
     background-size:20px 20px; background-position:0 0,10px 10px;
+  }
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+  .chip{
+    width:28px; height:28px; border-radius:8px; border:1px solid var(--border);
+    cursor:pointer; position:relative;
+  }
+  .chip:hover::after{
+    content:'×'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:700; text-shadow:0 0 3px #000; background:rgba(0,0,0,.25); border-radius:7px;
   }
   .pan{position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform}
   .pan canvas{display:block}
@@ -127,6 +137,11 @@
     font-size:20px; font-weight:700; color:var(--accent); pointer-events:none;
   }
   .hidden{display:none !important}
+  body:not(.adv-on) .adv{display:none !important}
+  #advRow{
+    display:flex; align-items:center; gap:8px; padding:2px 4px;
+  }
+  #advRow label{flex:1; font-weight:600; font-size:13px}
   /* ---------- Responsive ---------- */
   @media (max-width:900px){
     body{overflow:auto}
@@ -149,6 +164,12 @@
 
 <div id="app">
   <aside id="sidebar" class="hidden">
+    <!-- Advanced toggle -->
+    <div id="advRow">
+      <label for="chkAdv">⚙ Advanced mode</label>
+      <input type="checkbox" id="chkAdv">
+    </div>
+
     <!-- Mode -->
     <div class="group">
       <h3>Removal Mode</h3>
@@ -162,11 +183,13 @@
 
     <!-- Key color -->
     <div class="group" id="chromaGroup">
-      <h3>Key Color</h3>
+      <h3>Key Colors</h3>
       <div class="row">
-        <button class="btn small eyedrop" id="btnEyedrop" style="flex:1">💧 Pick from image</button>
-        <input type="color" id="keyColor" value="#00ff00" title="Key color">
+        <button class="btn small eyedrop" id="btnEyedrop" style="flex:1">💧 Add key from image</button>
+        <input type="color" id="keyColor" value="#00ff00" title="Add key from palette">
       </div>
+      <div class="chips" id="keyChips"></div>
+      <div class="hint">Every key color gets removed — add the background AND things like glows or shadows. Click a chip to delete it. Eyedropper stays on for multiple picks (Esc to stop).</div>
       <div class="slider-row">
         <div class="top"><span>Tolerance</span><span class="val" id="vTol">30</span></div>
         <input type="range" id="sTol" min="0" max="100" value="30">
@@ -175,15 +198,19 @@
         <div class="top"><span>Softness</span><span class="val" id="vSoft">12</span></div>
         <input type="range" id="sSoft" min="0" max="60" value="12">
       </div>
-      <div class="row">
+      <div class="row adv">
         <label for="chkDespill">Remove color spill (despill)</label>
         <input type="checkbox" id="chkDespill" checked>
       </div>
     </div>
 
     <!-- Edges -->
-    <div class="group">
+    <div class="group adv">
       <h3>Edge Refinement</h3>
+      <div class="slider-row">
+        <div class="top"><span>Shrink edge</span><span class="val" id="vShrink">0</span></div>
+        <input type="range" id="sShrink" min="-20" max="20" value="0">
+      </div>
       <div class="slider-row">
         <div class="top"><span>Feathering</span><span class="val" id="vFeather">3</span></div>
         <input type="range" id="sFeather" min="0" max="20" value="3">
@@ -192,6 +219,33 @@
         <div class="top"><span>Edge threshold</span><span class="val" id="vEdge">25</span></div>
         <input type="range" id="sEdge" min="1" max="100" value="25">
       </div>
+      <div class="hint">Shrink edge cuts N pixels off the whole outline — removes glow/halo fringes of any color without touching the interior. Negative values grow the edge instead.</div>
+    </div>
+
+    <!-- Matte cleanup -->
+    <div class="group adv">
+      <h3>Matte Cleanup</h3>
+      <div class="row">
+        <label for="chkProtect">Protect interior (erase from edges only)</label>
+        <input type="checkbox" id="chkProtect" checked>
+      </div>
+      <div class="row">
+        <label for="chkIsolate">Keep main subjects only</label>
+        <input type="checkbox" id="chkIsolate">
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Solidify</span><span class="val" id="vSolid">0</span></div>
+        <input type="range" id="sSolid" min="0" max="100" value="0">
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Clean specks</span><span class="val" id="vSpeck">15</span></div>
+        <input type="range" id="sSpeck" min="0" max="100" value="15">
+      </div>
+      <div class="slider-row">
+        <div class="top"><span>Fill holes</span><span class="val" id="vHoles">15</span></div>
+        <input type="range" id="sHoles" min="0" max="100" value="15">
+      </div>
+      <div class="hint">Protect interior: only erases areas reachable from the image border — key colors can no longer punch holes inside the subject (disable it if your subject has real see-through gaps). Keep main subjects: drops everything much smaller than the biggest kept piece(s). Solidify: pushes semi-transparent areas to fully opaque/transparent (fixes AI gray blotches). Specks/Holes: remove leftover islands / fill wrongly-erased gaps. 0 = off.</div>
     </div>
 
     <!-- Background -->
@@ -307,19 +361,21 @@ const state = {
   prevW: 0, prevH: 0, prevData: null,      // ImageData at preview resolution
   mode: 'chroma',                          // 'chroma' | 'ai'
   aiMaskFull: null, aiMaskPrev: null,      // Float32Array alpha mattes from AI
-  key: {r:0, g:255, b:0},
+  key: {r:0, g:255, b:0},                  // primary key (despill) = keys[0]
+  keys: [{r:0, g:255, b:0}],               // all removed colors
   tol: 30, soft: 12, despill: true,
-  feather: 3, edgeThr: 25,
+  feather: 3, edgeThr: 25, shrink: 0,
+  cleanSpecks: 15, fillHoles: 15, solidify: 0, isolate: false, protect: true,
   bgMode: 'transparent', bgColor: {r:255,g:255,b:255},
   brush: 'off', brushSize: 40, brushHard: 50,
   strokes: [],                             // {mode,size,hard,pts:[{x,y}]} in preview px
   zoom: 1, panX: 0, panY: 0,
   picking: false, spaceDown: false,
-  dirty: {mask:true, refine:true, comp:true},
+  dirty: {mask:true, clean:true, refine:true, comp:true},
 };
 
 // cached pipeline buffers (preview resolution)
-const cache = { baseMask:null, refined:null, brushPix:null, brushDirty:true };
+const cache = { baseMask:null, cleaned:null, refined:null, brushPix:null, brushDirty:true };
 
 /* ---------- small utils ---------- */
 const clamp = (v,a,b)=> v<a?a : v>b?b : v;
@@ -329,7 +385,8 @@ const cbOf = (r,g,b)=> 128 - 0.168736*r - 0.331264*g + 0.5*b;
 const crOf = (r,g,b)=> 128 + 0.5*r - 0.418688*g - 0.081312*b;
 
 function markDirty(stage){
-  if(stage==='mask'){ state.dirty.mask = state.dirty.refine = state.dirty.comp = true; }
+  if(stage==='mask'){ state.dirty.mask = state.dirty.clean = state.dirty.refine = state.dirty.comp = true; }
+  else if(stage==='clean'){ state.dirty.clean = state.dirty.refine = state.dirty.comp = true; }
   else if(stage==='refine'){ state.dirty.refine = state.dirty.comp = true; }
   else state.dirty.comp = true;
   scheduleRender();
@@ -347,18 +404,61 @@ function scheduleRender(){
    ===================================================================== */
 
 // 1) Chroma key: distance in the CbCr plane (luminance-independent).
-function chromaMask(imgData, key, tol, soft){
+//    Supports MULTIPLE key colors — a pixel is removed if it matches ANY key
+//    (min alpha wins), so background + glow/shadow tints can all be keyed out.
+function chromaMask(imgData, keys, tol, soft){
   const d = imgData.data, n = imgData.width*imgData.height;
   const mask = new Float32Array(n);
-  const kcb = cbOf(key.r,key.g,key.b), kcr = crOf(key.r,key.g,key.b);
+  if(!keys.length){ mask.fill(1); return mask; }
+  const kcb = keys.map(k=>cbOf(k.r,k.g,k.b)), kcr = keys.map(k=>crOf(k.r,k.g,k.b));
   const t0 = tol*0.9, t1 = t0 + Math.max(soft,1)*0.9, span = t1-t0;
+  const m = keys.length;
   for(let i=0,p=0;i<n;i++,p+=4){
     const r=d[p],g=d[p+1],b=d[p+2];
-    const dcb = cbOf(r,g,b)-kcb, dcr = crOf(r,g,b)-kcr;
-    const dist = Math.sqrt(dcb*dcb+dcr*dcr);
+    const cb = cbOf(r,g,b), cr = crOf(r,g,b);
+    let dist = Infinity;
+    for(let k=0;k<m;k++){
+      const dcb=cb-kcb[k], dcr=cr-kcr[k];
+      const dd = Math.sqrt(dcb*dcb+dcr*dcr);
+      if(dd<dist) dist=dd;
+    }
     mask[i] = dist<=t0 ? 0 : dist>=t1 ? 1 : (dist-t0)/span;
   }
   return mask;
+}
+
+// 1a) Protect interior: the real background is always connected to the image
+//     border. Flood-fill from the border over removed pixels; any removed
+//     region NOT reachable from the border is inside the subject -> restore it.
+//     This lets key colors match interior details without punching holes.
+function protectInterior(mask, w, h){
+  const n = w*h;
+  const bg = new Uint8Array(n);
+  const stack = new Int32Array(n);
+  let top = 0;
+  const push = i=>{ if(!bg[i] && mask[i]<0.5){ bg[i]=1; stack[top++]=i; } };
+  for(let x=0;x<w;x++){ push(x); push((h-1)*w+x); }
+  for(let y=0;y<h;y++){ push(y*w); push(y*w+w-1); }
+  while(top){
+    const i=stack[--top], x=i%w, y=(i/w)|0;
+    if(x>0)   push(i-1);
+    if(x<w-1) push(i+1);
+    if(y>0)   push(i-w);
+    if(y<h-1) push(i+w);
+  }
+  const out = mask.slice();
+  for(let i=0;i<n;i++) if(mask[i]<0.5 && !bg[i]) out[i]=1;
+  return out;
+}
+
+// 1b) Solidify: contrast curve on the matte — pushes semi-transparent pixels
+//     to fully opaque or fully transparent (fixes AI gray blotches / faint glow).
+function solidify(mask, v){
+  if(v<1) return mask;
+  const lo = 0.5*(v/100), hi = 1 - 0.49*(v/100), span = hi-lo;
+  const out = new Float32Array(mask.length);
+  for(let i=0;i<mask.length;i++) out[i] = clamp((mask[i]-lo)/span, 0, 1);
+  return out;
 }
 
 // separable box blur on a Float32 field
@@ -379,6 +479,84 @@ function boxBlur(src, w, h, r){
     for(let y=0;y<h;y++){
       out[y*w+x]=sum/(2*r+1);
       sum += tmp[clamp(y+r+1,0,h-1)*w+x] - tmp[clamp(y-r,0,h-1)*w+x];
+    }
+  }
+  return out;
+}
+
+// 1b) Matte cleanup via connected components (flood fill, 4-neighborhood).
+//     - specks: kept islands smaller than speckPx are erased (glare, reflections)
+//     - holes:  erased regions smaller than holePx that do NOT touch the image
+//       border are restored (gaps wrongly cut inside the subject)
+function matteCleanup(mask, w, h, speckPx, holePx, isolate){
+  if(speckPx<1 && holePx<1 && !isolate) return mask;
+  const n = w*h, out = mask.slice();
+  const stack = new Int32Array(n);
+  function components(test){
+    const seen = new Uint8Array(n), comps = [];
+    for(let s=0;s<n;s++){
+      if(seen[s] || !test(s)) continue;
+      let top=0; stack[top++]=s; seen[s]=1;
+      const px=[]; let touches=false;
+      while(top){
+        const i=stack[--top]; px.push(i);
+        const x=i%w, y=(i/w)|0;
+        if(x===0||y===0||x===w-1||y===h-1) touches=true;
+        let j;
+        if(x>0   && !seen[j=i-1] && test(j)){ seen[j]=1; stack[top++]=j; }
+        if(x<w-1 && !seen[j=i+1] && test(j)){ seen[j]=1; stack[top++]=j; }
+        if(y>0   && !seen[j=i-w] && test(j)){ seen[j]=1; stack[top++]=j; }
+        if(y<h-1 && !seen[j=i+w] && test(j)){ seen[j]=1; stack[top++]=j; }
+      }
+      comps.push({px, touches});
+    }
+    return comps;
+  }
+  // >0.2 / <0.8 so the soft ramp around a region is cleaned with it (no ghost ring)
+  if(speckPx>=1 || isolate){
+    const comps = components(i=>mask[i]>0.2);
+    let maxA=0; for(const c of comps) if(c.px.length>maxA) maxA=c.px.length;
+    for(const c of comps){
+      const small = c.px.length < speckPx;
+      const notMain = isolate && c.px.length < maxA*0.15;   // keep pieces ≥15% of biggest
+      if(small || notMain) for(const i of c.px) out[i]=0;
+    }
+  }
+  if(holePx>=1){
+    const comps = components(i=>mask[i]<0.8);
+    for(const c of comps)
+      if(!c.touches && c.px.length<holePx) for(const i of c.px) out[i]=1;
+  }
+  return out;
+}
+// slider (0-100) -> area threshold in px, proportional to image size
+const cleanArea = (v,w,h)=> v<1 ? 0 : Math.round((v/100)**2 * w*h * 0.05);
+
+// 2a) Shrink / grow the matte edge (morphological erosion / dilation).
+//     Positive r chokes the outline inward — eats glow/halo fringes of ANY
+//     color without touching the interior. Negative r expands it.
+function morphShift(mask, w, h, r){
+  const rad = Math.abs(Math.round(r));
+  if(!rad) return mask;
+  const erode = r>0;
+  const tmp = new Float32Array(mask.length), out = new Float32Array(mask.length);
+  for(let y=0;y<h;y++){                       // horizontal min/max
+    const row=y*w;
+    for(let x=0;x<w;x++){
+      let v = erode?1:0;
+      const x0=Math.max(0,x-rad), x1=Math.min(w-1,x+rad);
+      if(erode){ for(let k=x0;k<=x1;k++){ const m=mask[row+k]; if(m<v)v=m; } }
+      else     { for(let k=x0;k<=x1;k++){ const m=mask[row+k]; if(m>v)v=m; } }
+      tmp[row+x]=v;
+    }
+  }
+  for(let x=0;x<w;x++){                       // vertical min/max
+    for(let y=0;y<h;y++){
+      let v = erode?1:0;
+      const y0=Math.max(0,y-rad), y1=Math.min(h-1,y+rad);
+      if(erode){ for(let k=y0;k<=y1;k++){ const m=tmp[k*w+x]; if(m<v)v=m; } }
+      else     { for(let k=y0;k<=y1;k++){ const m=tmp[k*w+x]; if(m>v)v=m; } }
+      out[y*w+x]=v;
     }
   }
   return out;
@@ -491,8 +669,12 @@ function runPipeline(imgData, featherScale, strokeScale){
   }else if(state.mode==='ai' && state.aiMaskPrev && w===state.prevW){
     mask = state.aiMaskPrev;
   }else{
-    mask = chromaMask(imgData, state.key, state.tol, state.soft);
+    mask = chromaMask(imgData, state.keys, state.tol, state.soft);
   }
+  if(state.protect) mask = protectInterior(mask, w, h);
+  mask = solidify(mask, state.solidify);
+  mask = matteCleanup(mask, w, h, cleanArea(state.cleanSpecks,w,h), cleanArea(state.fillHoles,w,h), state.isolate);
+  mask = morphShift(mask, w, h, Math.round(state.shrink*featherScale));
   mask = refineMask(mask, w, h, Math.round(state.feather*featherScale), state.edgeThr);
   if(state.strokes.length){
     mask = applyBrush(mask, renderStrokes(state.strokes, w, h, strokeScale));
@@ -509,11 +691,17 @@ function renderPreview(){
   if(state.dirty.mask || !cache.baseMask){
     cache.baseMask = (state.mode==='ai' && state.aiMaskPrev)
       ? state.aiMaskPrev
-      : chromaMask(state.prevData, state.key, state.tol, state.soft);
+      : chromaMask(state.prevData, state.keys, state.tol, state.soft);
     state.dirty.mask=false;
   }
+  if(state.dirty.clean || !cache.cleaned){
+    let m = state.protect ? protectInterior(cache.baseMask, w, h) : cache.baseMask;
+    cache.cleaned = matteCleanup(solidify(m, state.solidify), w, h,
+      cleanArea(state.cleanSpecks,w,h), cleanArea(state.fillHoles,w,h), state.isolate);
+    state.dirty.clean=false;
+  }
   if(state.dirty.refine || !cache.refined){
-    cache.refined = refineMask(cache.baseMask, w, h, state.feather, state.edgeThr);
+    cache.refined = refineMask(morphShift(cache.cleaned, w, h, state.shrink), w, h, state.feather, state.edgeThr);
     state.dirty.refine=false;
   }
   if(cache.brushDirty){
@@ -558,7 +746,7 @@ async function loadFile(file){
   bmp.close?.();
 
   // reset per-image state
-  state.strokes=[]; cache.brushDirty=true; cache.baseMask=cache.refined=null;
+  state.strokes=[]; cache.brushDirty=true; cache.baseMask=cache.cleaned=cache.refined=null;
   state.aiMaskFull=state.aiMaskPrev=null;
   if(state.mode==='ai') setMode('chroma', true);
   autoKeyFromBorder();
@@ -592,8 +780,10 @@ function autoKeyFromBorder(){
   let best=null;
   for(const e of bins.values()) if(!best||e.n>best.n) best=e;
   if(best){
-    state.key={r:Math.round(best.r/best.n), g:Math.round(best.g/best.n), b:Math.round(best.b/best.n)};
-    $('keyColor').value = rgb2hex(state.key);
+    const c={r:Math.round(best.r/best.n), g:Math.round(best.g/best.n), b:Math.round(best.b/best.n)};
+    state.keys=[c]; state.key=c;
+    $('keyColor').value = rgb2hex(c);
+    renderKeyChips();
   }
 }
 
@@ -740,11 +930,35 @@ function pickColor(e){
   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){        // 3×3 average
     const p=((yi+dy)*state.prevW+(xi+dx))*4; r+=d[p]; g+=d[p+1]; b+=d[p+2];
   }
-  state.key={r:Math.round(r/9), g:Math.round(g/9), b:Math.round(b/9)};
-  $('keyColor').value=rgb2hex(state.key);
-  setPicking(false);
+  addKey({r:Math.round(r/9), g:Math.round(g/9), b:Math.round(b/9)});
+  // eyedropper stays active so several keys can be picked in a row (Esc to stop)
+}
+
+/* ---------- key color list ---------- */
+function addKey(c){
+  if(state.keys.length>=8) state.keys.pop();
+  state.keys.push(c);
+  state.key = state.keys[0];               // despill uses the first key
+  $('keyColor').value = rgb2hex(c);
+  renderKeyChips();
   if(state.mode!=='chroma') setMode('chroma');
   markDirty('mask');
+}
+function removeKey(idx){
+  state.keys.splice(idx,1);
+  state.key = state.keys[0] || {r:0,g:255,b:0};
+  renderKeyChips();
+  markDirty('mask');
+}
+function renderKeyChips(){
+  const box=$('keyChips'); box.innerHTML='';
+  state.keys.forEach((k,i)=>{
+    const el=document.createElement('button');
+    el.className='chip'; el.style.background=rgb2hex(k);
+    el.title=`${rgb2hex(k)} — click to remove`;
+    el.onclick=()=>removeKey(i);
+    box.appendChild(el);
+  });
 }
 function setPicking(on){
   state.picking=on;
@@ -814,13 +1028,19 @@ function bindSlider(id, valId, prop, stage){
 }
 bindSlider('sTol','vTol','tol','mask');
 bindSlider('sSoft','vSoft','soft','mask');
+bindSlider('sSpeck','vSpeck','cleanSpecks','clean');
+bindSlider('sHoles','vHoles','fillHoles','clean');
+bindSlider('sShrink','vShrink','shrink','refine');
 bindSlider('sFeather','vFeather','feather','refine');
 bindSlider('sEdge','vEdge','edgeThr','refine');
 $('sBSize').addEventListener('input',e=>{ state.brushSize=+e.target.value; $('vBSize').textContent=e.target.value; });
 $('sBHard').addEventListener('input',e=>{ state.brushHard=+e.target.value; $('vBHard').textContent=e.target.value; });
 $('sQual').addEventListener('input',e=>$('vQual').textContent=e.target.value);
 
-$('keyColor').addEventListener('input',e=>{ state.key=hex2rgb(e.target.value); if(state.mode!=='chroma')setMode('chroma'); markDirty('mask'); });
+$('keyColor').addEventListener('change',e=>addKey(hex2rgb(e.target.value)));
+bindSlider('sSolid','vSolid','solidify','clean');
+$('chkIsolate').addEventListener('change',e=>{ state.isolate=e.target.checked; markDirty('clean'); });
+$('chkProtect').addEventListener('change',e=>{ state.protect=e.target.checked; markDirty('clean'); });
 $('chkDespill').addEventListener('change',e=>{ state.despill=e.target.checked; markDirty('comp'); });
 $('bgColor').addEventListener('input',e=>{ state.bgColor=hex2rgb(e.target.value); markDirty('comp'); });
 
@@ -846,6 +1066,36 @@ $('fmtSel').addEventListener('change',()=>{
     : 'WEBP supports transparency with smaller files.';
 });
 $('btnDownload').onclick=download;
+
+/* ---------- advanced mode ---------- */
+// In simple mode these values are applied automatically — they're the
+// combination that works best across image types (protect interior on,
+// moderate cleanup, soft feather, despill on).
+const AUTO_DEFAULTS = {
+  tol:30, soft:12, despill:true,
+  shrink:0, feather:3, edgeThr:25,
+  protect:true, isolate:false, solidify:0, cleanSpecks:15, fillHoles:15,
+};
+function applyAutoDefaults(){
+  Object.assign(state, AUTO_DEFAULTS);
+  const sync=(id,valId,v)=>{ $(id).value=v; if(valId)$(valId).textContent=v; };
+  sync('sTol','vTol',state.tol);        sync('sSoft','vSoft',state.soft);
+  sync('sShrink','vShrink',state.shrink); sync('sFeather','vFeather',state.feather);
+  sync('sEdge','vEdge',state.edgeThr);  sync('sSolid','vSolid',state.solidify);
+  sync('sSpeck','vSpeck',state.cleanSpecks); sync('sHoles','vHoles',state.fillHoles);
+  $('chkDespill').checked=state.despill;
+  $('chkProtect').checked=state.protect;
+  $('chkIsolate').checked=state.isolate;
+  markDirty('mask');
+}
+function setAdvanced(on){
+  document.body.classList.toggle('adv-on', on);
+  $('chkAdv').checked = on;
+  try{ localStorage.setItem('keyout-adv', on?'1':'0'); }catch{}
+  if(!on) applyAutoDefaults();
+}
+$('chkAdv').addEventListener('change',e=>setAdvanced(e.target.checked));
+try{ setAdvanced(localStorage.getItem('keyout-adv')==='1'); }catch{ setAdvanced(false); }
 
 /* ---------- theme ---------- */
 const root=document.documentElement;
@@ -879,6 +1129,7 @@ window.addEventListener('keydown',e=>{
   if(e.key==='['){ $('sBSize').value=Math.max(4,state.brushSize-8); $('sBSize').dispatchEvent(new Event('input')); }
   if(e.key===']'){ $('sBSize').value=Math.min(300,state.brushSize+8); $('sBSize').dispatchEvent(new Event('input')); }
   if(e.key==='0' && state.prevData) fitView();
+  if(e.key==='Escape') setPicking(false);
 });
 window.addEventListener('keyup',e=>{ if(e.code==='Space'){ state.spaceDown=false; updateBrushCursor(); } });
 </script>
